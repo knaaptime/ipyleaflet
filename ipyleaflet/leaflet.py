@@ -20,6 +20,7 @@ from traitlets import (
 )
 
 from branca.colormap import linear, ColorMap
+from mapclassify import *
 
 from ._version import EXTENSION_VERSION
 
@@ -32,6 +33,18 @@ allowed_cursor = ['alias', 'cell', 'grab', 'move', 'crosshair', 'context-menu',
                   'nwse-resize', 'row-resize', 'col-resize', 'copy', 'default',
                   'grabbing', 'help', 'no-drop', 'not-allowed', 'pointer',
                   'progress', 'text', 'wait', 'zoom-in', 'zoom-out']
+
+scheme_dispatch = {
+    "equal_interval": EqualInterval,
+    "fisher_jenks": FisherJenks,
+    "head_tail_breaks": HeadTailBreaks,
+    "jenks_caspall": JenksCaspall,
+    "max_p": MaxP,
+    "maximum_breaks": MaximumBreaks,
+    "natural_breaks": NaturalBreaks,
+    "quantiles": Quantiles,
+    "percentiles": Percentiles,
+}
 
 
 def basemap_to_tiles(basemap, day='yesterday', **kwargs):
@@ -603,10 +616,20 @@ class Choropleth(GeoJSON):
     value_max = CFloat(None, allow_none=True)
     colormap = Instance(ColorMap)
     key_on = Unicode('id')
+    k = Int()
+    scheme = Unicode('')
 
-    @observe('style', 'style_callback', 'value_min', 'value_max', 'geo_data', 'choro_data', 'colormap')
+    @observe('style', 'style_callback', 'value_min', 'value_max', 'geo_data', 'choro_data', 'colormap', 'k', 'scheme')
     def _update_data(self, change):
         self.data = self._get_data()
+
+    @default('k')
+    def _default_k(self):
+        return 6
+
+    @default('scheme')
+    def _default_scheme(self):
+        return 'quantiles'
 
     @default('colormap')
     def _default_colormap(self):
@@ -632,7 +655,9 @@ class Choropleth(GeoJSON):
         if self.value_max is None:
             self.value_max = max(self.choro_data.items(), key=lambda x: x[1])[1]
 
-        colormap = self.colormap.scale(self.value_min, self.value_max)
+        classifier = scheme_dispatch[scheme](self.choro_data, k)
+        colormap = self.colormap.to_step(quantiles=classifier.bins)
+
         data = copy.deepcopy(self.geo_data)
 
         for feature in data['features']:
