@@ -617,7 +617,7 @@ class Choropleth(GeoJSON):
     colormap = Instance(ColorMap)
     key_on = Unicode('id')
     k = Int()
-    scheme = Unicode('')
+    scheme = Unicode()
 
     @observe('style', 'style_callback', 'value_min', 'value_max', 'geo_data', 'choro_data', 'colormap', 'k', 'scheme')
     def _update_data(self, change):
@@ -655,8 +655,9 @@ class Choropleth(GeoJSON):
         if self.value_max is None:
             self.value_max = max(self.choro_data.items(), key=lambda x: x[1])[1]
 
-        classifier = scheme_dispatch[scheme](self.choro_data, k)
-        colormap = self.colormap.to_step(quantiles=classifier.bins)
+        classifier = scheme_dispatch[self.scheme](list(self.choro_data.values()), self.k)
+        colormap = self.colormap.scale(self.value_min, self.value_max)
+        colormap = colormap.to_step(index=classifier.bins, n=self.k)
 
         data = copy.deepcopy(self.geo_data)
 
